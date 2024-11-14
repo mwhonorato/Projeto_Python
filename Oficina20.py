@@ -4,38 +4,49 @@ Created on Wed Nov 13 08:07:50 2024
 
 @author: tistahl
 """
-import pyodbc
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-from datetime import datetime
-from PIL import Image, ImageTk
+import os
 
-# Conectar ao banco de dados SQL Server
 conn = pyodbc.connect(
     'DRIVER={ODBC Driver 17 for SQL Server};'
-    'SERVER=localhost;'
-    'DATABASE=Oficina;'
-    'UID=sa;'
-    'PWD=Kkh@501350'
+    f'SERVER={os.getenv("DB_SERVER")};'
+    f'DATABASE={os.getenv("DB_NAME")};'
+    f'UID={os.getenv("DB_USER")};'
+    f'PWD={os.getenv("DB_PASSWORD")}'
 )
 cursor = conn.cursor()
+
 
 # Função para salvar dados no banco de dados
 def save_to_db(table, data):
     placeholders = ', '.join(['?'] * len(data))
-    cursor.execute(f'INSERT INTO {table} VALUES ({placeholders})', data)
-    conn.commit()
+    query = f'INSERT INTO {table} VALUES ({placeholders})'
+    try:
+        cursor.execute(query, data)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        messagebox.showerror("Erro", f"Erro ao salvar dados: {e}")
 
 # Função para atualizar dados no banco de dados
 def update_db(table, data, primary_key, key_value):
     set_clause = ', '.join([f'{col} = ?' for col in data.keys()])
-    cursor.execute(f'UPDATE {table} SET {set_clause} WHERE {primary_key} = ?', list(data.values()) + [key_value])
-    conn.commit()
+    query = f'UPDATE {table} SET {set_clause} WHERE {primary_key} = ?'
+    try:
+        cursor.execute(query, list(data.values()) + [key_value])
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        messagebox.showerror("Erro", f"Erro ao atualizar dados: {e}")
 
 # Função para excluir dados no banco de dados
 def delete_from_db(table, primary_key, key_value):
-    cursor.execute(f'DELETE FROM {table} WHERE {primary_key} = ?', (key_value,))
-    conn.commit()
+    query = f'DELETE FROM {table} WHERE {primary_key} = ?'
+    try:
+        cursor.execute(query, (key_value,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        messagebox.showerror("Erro", f"Erro ao excluir dados: {e}")
 
 # Função para validar os campos antes de salvar os dados
 def validate_entries(entries):
@@ -43,10 +54,21 @@ def validate_entries(entries):
         if not entry.get():
             messagebox.showerror("Erro", f"O campo '{label}' não pode estar vazio.")
             return False
+        # Adicionar validações específicas por campo
+        if label == "CPF/CNPJ" and not validate_cpf_cnpj(entry.get()):
+            messagebox.showerror("Erro", f"O campo '{label}' é inválido.")
+            return False
+    return True
+
+def validate_cpf_cnpj(value):
+    # Implementar validação de CPF/CNPJ
     return True
 
 # Cadastro de Produtos
-labels_produtos = ["Código do Produto", "Tipo do Produto", "Nome da Peça", "Quantidade", "Data da Compra", "Fornecedor do Produto", "Número da Nota Fiscal", "Ponto de Pedido"]
+labels_produtos = [
+    "Código do Produto", "Tipo do Produto", "Nome da Peça", "Quantidade",
+    "Data da Compra", "Fornecedor do Produto", "Número da Nota Fiscal", "Ponto de Pedido"
+]
 entries_produtos = {}
 for i, label in enumerate(labels_produtos):
     tk.Label(frames['Cadastro de Produtos'], text=label, anchor='w').grid(row=i, column=0, sticky='w')
@@ -117,14 +139,10 @@ def update_product_list():
 
 update_product_list()
 
-# Repita o mesmo processo para as outras tabelas (Ferramentas, Clientes, Ordens de Serviço, Estoque, Notas Fiscais)
-
-# Fechar a conexão ao banco de dados ao finalizar
-root.protocol("WM_DELETE_WINDOW", lambda: (conn.close(), root.destroy()))
-
-# Resto do código da interface gráfica permanece o mesmo
 # Cadastro de Ferramentas
-labels_ferramentas = ["Tipo de Ferramenta", "Modelo da Ferramenta", "Data da Compra", "Fornecedor", "Quantidade"]
+labels_ferramentas = [
+    "Tipo de Ferramenta", "Modelo da Ferramenta", "Data da Compra", "Fornecedor", "Quantidade"
+]
 entries_ferramentas = {}
 for i, label in enumerate(labels_ferramentas):
     tk.Label(frames['Cadastro de Ferramentas'], text=label, anchor='w').grid(row=i, column=0, sticky='w')
@@ -148,6 +166,7 @@ def save_ferramenta():
 def update_ferramenta():
     if validate_entries(entries_ferramentas):
         data = {
+            "ModeloFerramenta": entries_ferramentas["Modelo da Ferramenta"].get(),
             "DataCompra": entries_ferramentas["Data da Compra"].get(),
             "Fornecedor": entries_ferramentas["Fornecedor"].get(),
             "Quantidade": entries_ferramentas["Quantidade"].get()
@@ -190,7 +209,9 @@ update_tool_list()
 
 # Cadastro de Clientes
 cliente_codigo = 1
-labels_clientes = ["Código do Cliente", "Nome do Cliente", "CPF/CNPJ", "Endereço", "Número do Telefone"]
+labels_clientes = [
+    "Código do Cliente", "Nome do Cliente", "CPF/CNPJ", "Endereço", "Número do Telefone"
+]
 entries_clientes = {}
 for i, label in enumerate(labels_clientes):
     tk.Label(frames['Cadastro de Clientes'], text=label).grid(row=i, column=0, sticky='w')
@@ -198,7 +219,7 @@ for i, label in enumerate(labels_clientes):
         entry = tk.Label(frames['Cadastro de Clientes'], text=f"{cliente_codigo:07d}")
     else:
         entry = tk.Entry(frames['Cadastro de Clientes'])
-        entry.grid(row=i, column=1, sticky='w')
+    entry.grid(row=i, column=1, sticky='w')
     entries_clientes[label] = entry
 
 def save_cliente():
@@ -264,39 +285,16 @@ def update_client_list():
 
 update_client_list()
 
-# Inclusão de Ordens de Serviço
-labels_ordens_servico = ["Número da Ordem de Serviço", "Código do Cliente", "Nome do Cliente", "CPF/CNPJ", "Endereço", "Número de Telefone", "Serviço Realizado", "Código do Produto", "Quantidade Utilizada"]
+labels_ordens_servico = [
+    "Número da Ordem de Serviço", "Código do Cliente", "Nome do Cliente", "CPF/CNPJ",
+    "Endereço", "Número de Telefone", "Serviço Realizado", "Código do Produto", "Quantidade Utilizada"
+]
 entries_ordens_servico = {}
 for i, label in enumerate(labels_ordens_servico):
     tk.Label(frames['Inclusão de Ordens de Serviço'], text=label, anchor='w').grid(row=i, column=0, sticky='w')
     entry = tk.Entry(frames['Inclusão de Ordens de Serviço'])
     entry.grid(row=i, column=1, sticky='w')
     entries_ordens_servico[label] = entry
-
-def buscar_cliente():
-    codigo = entries_ordens_servico["Código do Cliente"].get()
-    cursor.execute('SELECT * FROM Clientes WHERE CodigoCliente = ?', (codigo,))
-    row = cursor.fetchone()
-    if row:
-        entries_ordens_servico["Nome do Cliente"].delete(0, tk.END)
-        entries_ordens_servico["Nome do Cliente"].insert(0, row[1])
-        entries_ordens_servico["CPF/CNPJ"].delete(0, tk.END)
-        entries_ordens_servico["CPF/CNPJ"].insert(0, row[2])
-        entries_ordens_servico["Endereço"].delete(0, tk.END)
-        entries_ordens_servico["Endereço"].insert(0, row[3])
-        entries_ordens_servico["Número de Telefone"].delete(0, tk.END)
-        entries_ordens_servico["Número de Telefone"].insert(0, row[4])
-
-entries_ordens_servico["Código do Cliente"].bind("<FocusOut>", lambda e: buscar_cliente())
-
-
-def atualizar_quantidade_produto(codigo, quantidade_usada):
-    cursor.execute('SELECT Quantidade FROM Produtos WHERE CodigoProduto = ?', (codigo,))
-    row = cursor.fetchone()
-    if row:
-        nova_quantidade = row[0] - quantidade_usada
-        cursor.execute('UPDATE Produtos SET Quantidade = ? WHERE CodigoProduto = ?', (nova_quantidade, codigo))
-        conn.commit()
 
 def save_ordem_servico():
     if validate_entries(entries_ordens_servico):
@@ -365,7 +363,9 @@ def update_service_order_list():
 update_service_order_list()
 
 # Controle de Estoque
-labels_estoque = ["Código do Produto", "Nome do Produto", "Quantidade em Estoque", "Ponto de Pedido"]
+labels_estoque = [
+    "Código do Produto", "Nome do Produto", "Quantidade em Estoque", "Ponto de Pedido"
+]
 entries_estoque = {}
 for i, label in enumerate(labels_estoque):
     tk.Label(frames['Controle de Estoque'], text=label, anchor='w').grid(row=i, column=0, sticky='w')
@@ -429,7 +429,9 @@ def update_stock_list():
 update_stock_list()
 
 # Notas Fiscais
-labels_notas_fiscais = ["Número da Nota Fiscal", "Data de Emissão", "Código do Cliente", "Nome do Cliente", "Valor Total"]
+labels_notas_fiscais = [
+    "Número da Nota Fiscal", "Data de Emissão", "Código do Cliente", "Nome do Cliente", "Valor Total"
+]
 entries_notas_fiscais = {}
 for i, label in enumerate(labels_notas_fiscais):
     tk.Label(frames['Notas Fiscais'], text=label, anchor='w').grid(row=i, column=0, sticky='w')
@@ -526,4 +528,3 @@ root.protocol("WM_DELETE_WINDOW", lambda: (conn.close(), root.destroy()))
 
 # Executa a aplicação
 root.mainloop()
-			
