@@ -1,10 +1,9 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter import ttk
+from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 import os
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from fuzzywuzzy import process
 import matplotlib.pyplot as plt
 import smtplib
@@ -40,6 +39,19 @@ class App:
         self.root = root
         self.root.title("Gestão JM")
         self.root.geometry("1200x700")
+
+        # Definir atributos iniciais
+        self.tree_clientes = None
+        self.tree_produtos = None
+        self.logo_image = None
+        self.frame_produtos = None
+        self.frame_relatorios = None
+        self.frame_ordens = None
+        self.tree_ordens = None
+        self.frame_configuracoes = None
+        self.frame_email = None
+        self.valor_peca_var = tk.StringVar() # Adicionado
+        self.peca_var = tk.StringVar() # Adicionado
 
         # Verificar e criar planilha
         verificar_criar_planilha()
@@ -144,43 +156,43 @@ class App:
 
     def gerenciar_clientes(self):
         self.clear_main_frame()
-        self.frame_clientes = tk.Frame(self.main_frame)
-        self.frame_clientes.pack(fill=tk.BOTH, expand=True)
+        self.tree_clientes = tk.Frame(self.main_frame)
+        self.tree_clientes.pack(fill=tk.BOTH, expand=True)
 
         # Formulário de inclusão de cliente
-        tk.Label(self.frame_clientes, text="Nome:").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(self.tree_clientes, text="Nome:").grid(row=0, column=0, padx=5, pady=5)
         nome_var = tk.StringVar()
-        tk.Entry(self.frame_clientes, textvariable=nome_var).grid(row=0, column=1, padx=5, pady=5)
+        tk.Entry(self.tree_clientes, textvariable=nome_var).grid(row=0, column=1, padx=5, pady=5)
 
-        tk.Label(self.frame_clientes, text="CPF/CNPJ:").grid(row=1, column=0, padx=5, pady=5)
+        tk.Label(self.tree_clientes, text="CPF/CNPJ:").grid(row=1, column=0, padx=5, pady=5)
         cpf_var = tk.StringVar()
-        tk.Entry(self.frame_clientes, textvariable=cpf_var).grid(row=1, column=1, padx=5, pady=5)
-        tk.Label(self.frame_clientes, text="Telefone:").grid(row=2, column=0, padx=5, pady=5)
+        tk.Entry(self.tree_clientes, textvariable=cpf_var).grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(self.tree_clientes, text="Telefone:").grid(row=2, column=0, padx=5, pady=5)
         telefone_var = tk.StringVar()
-        tk.Entry(self.frame_clientes, textvariable=telefone_var).grid(row=2, column=1, padx=5, pady=5)
+        tk.Entry(self.tree_clientes, textvariable=telefone_var).grid(row=2, column=1, padx=5, pady=5)
 
-        tk.Label(self.frame_clientes, text="Email:").grid(row=3, column=0, padx=5, pady=5)
+        tk.Label(self.tree_clientes, text="Email:").grid(row=3, column=0, padx=5, pady=5)
         email_var = tk.StringVar()
-        tk.Entry(self.frame_clientes, textvariable=email_var).grid(row=3, column=1, padx=5, pady=5)
-
-        tk.Label(self.frame_clientes, text="Endereço:").grid(row=4, column=0, padx=5, pady=5)
+        tk.Entry(self.tree_clientes, textvariable=email_var).grid(row=3, column=1, padx=5, pady=5)
+        tk.Label(self.tree_clientes, text="Endereço:").grid(row=4, column=0, padx=5, pady=5)
         endereco_var = tk.StringVar()
-        tk.Entry(self.frame_clientes, textvariable=endereco_var).grid(row=4, column=1, padx=5, pady=5)
+        tk.Entry(self.tree_clientes, textvariable=endereco_var).grid(row=4, column=1, padx=5, pady=5)
 
         tk.Button(
-            self.frame_clientes,
+            self.tree_clientes,
             text="Salvar",
             command=lambda: self.salvar_cliente(nome_var, cpf_var, telefone_var, email_var, endereco_var)
         ).grid(row=5, column=0, columnspan=2, pady=20)
 
         # Campo de busca avançada
-        tk.Label(self.frame_clientes, text="Buscar Cliente:").grid(row=6, column=0, padx=5, pady=5)
+        tk.Label(self.tree_clientes, text="Buscar Cliente:").grid(row=6, column=0, padx=5, pady=5)
         busca_var = tk.StringVar()
-        tk.Entry(self.frame_clientes, textvariable=busca_var).grid(row=6, column=1, padx=5, pady=5)
+        tk.Entry(self.tree_clientes, textvariable=busca_var).grid(row=6, column=1, padx=5, pady=5)
         tk.Button(
-            self.frame_clientes,
+            self.tree_clientes,
             text="Buscar",
-            command=lambda: self.buscar_cliente_avancada(busca_var.get())
+            command=lambda: self.buscar_cliente_avancada(busca_var.get(), self.tree_clientes)
         ).grid(row=6, column=2, padx=5, pady=5)
 
         # Tabela com os clientes cadastrados
@@ -191,7 +203,7 @@ class App:
 
     def create_client_table(self):
         columns = ("ID", "Nome", "CPF/CNPJ", "Telefone", "Email", "Endereço")
-        tree = ttk.Treeview(self.frame_clientes, columns=columns, show="headings")
+        tree = ttk.Treeview(self.tree_clientes, columns=columns, show="headings")
         for col in columns:
             tree.heading(col, text=col)
             tree.column(col, width=150)
@@ -206,14 +218,24 @@ class App:
         for _, row in df.iterrows():
             self.tree_clientes.insert("", tk.END, values=row.tolist())
 
-    def buscar_cliente_avancada(self, termo):
-        df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Clientes")
-        clientes = df["Nome"].tolist()
-        resultados = process.extract(termo, clientes, limit=5)
-        self.tree_clientes.delete(*self.tree_clientes.get_children())
-        for resultado in resultados:
-            cliente = df[df["Nome"] == resultado[0]].iloc[0]
-            self.tree_clientes.insert("", tk.END, values=cliente.tolist())
+    def buscar_cliente_avancada(self, termo, treeview):
+        try:
+            # Carregar os dados da planilha
+            df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Clientes")
+            
+            # Usar fuzzywuzzy para encontrar correspondências
+            nomes_clientes = df["Nome"].tolist()
+            resultados = process.extract(termo, nomes_clientes, limit=5)
+
+            # Limpar o treeview antes de exibir os resultados
+            treeview.delete(*treeview.get_children())
+
+            # Adicionar os resultados no treeview
+            for resultado in resultados:
+                cliente = df[df["Nome"] == resultado[0]].iloc[0]
+                treeview.insert("", tk.END, values=cliente.tolist())
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao buscar cliente: {e}")
 
     def show_client_menu(self, event):
         item = self.tree_clientes.selection()[0]
@@ -372,13 +394,17 @@ class App:
             self.tree_produtos.insert("", tk.END, values=row.tolist())
 
     def buscar_produto_avancada(self, termo):
-        df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Produtos")
-        produtos = df["Nome"].tolist()
-        resultados = process.extract(termo, produtos, limit=5)
-        self.tree_produtos.delete(*self.tree_produtos.get_children())
-        for resultado in resultados:
-            produto = df[df["Nome"] == resultado[0]].iloc[0]
-            self.tree_produtos.insert("", tk.END, values=produto.tolist())
+        try:
+            df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Produtos")
+            produtos = df["Nome"].tolist()
+            resultados = process.extract(termo, produtos, limit=5)
+            self.tree_produtos.delete(*self.tree_produtos.get_children())
+            for resultado in resultados:
+                produto = df[df["Nome"] == resultado[0]].iloc[0]
+                self.tree_produtos.insert("", tk.END, values=produto.tolist())
+        except Exception as e:
+            print(f"Erro ao buscar produto: {e}")
+            messagebox.showerror("Erro", f"Erro ao buscar produto: {e}")
 
     def show_produto_menu(self, event):
         item = self.tree_produtos.selection()[0]
@@ -526,262 +552,285 @@ class App:
         self.frame_ordens = tk.Frame(self.main_frame)
         self.frame_ordens.pack(fill=tk.BOTH, expand=True)
 
-        # Formulário de inclusão de ordem de serviço
-        tk.Label(self.frame_ordens, text="Cliente:").grid(row=0, column=0, padx=5, pady=5)
-        cliente_var = tk.StringVar()
-        cliente_entry = tk.Entry(self.frame_ordens, textvariable=cliente_var)
-        cliente_entry.grid(row=0, column=1, padx=5, pady=5)
-        cliente_entry.bind("<KeyRelease>", lambda event: self.buscar_cliente(cliente_var))
-
-        tk.Label(self.frame_ordens, text="Modelo Moto:").grid(row=1, column=0, padx=5, pady=5)
-        modelo_var = tk.StringVar()
-        tk.Entry(self.frame_ordens, textvariable=modelo_var).grid(row=1, column=1, padx=5, pady=5)
-
-        tk.Label(self.frame_ordens, text="Descrição de Serviços:").grid(row=2, column=0, padx=5, pady=5)
-        descricao_var = tk.StringVar()
-        tk.Entry(self.frame_ordens, textvariable=descricao_var).grid(row=2, column=1, padx=5, pady=5)
-
-        tk.Label(self.frame_ordens, text="Peças Utilizadas:").grid(row=3, column=0, padx=5, pady=5)
-        pecas_var = tk.StringVar()
-        pecas_entry = tk.Entry(self.frame_ordens, textvariable=pecas_var)
-        pecas_entry.grid(row=3, column=1, padx=5, pady=5)
-        pecas_entry.bind("<KeyRelease>", lambda event: self.buscar_pecas(pecas_var))
-
-        tk.Label(self.frame_ordens, text="Quantidade Utilizada:").grid(row=4, column=0, padx=5, pady=5)
-        quantidade_utilizada_var = tk.StringVar()
-        tk.Entry(self.frame_ordens, textvariable=quantidade_utilizada_var).grid(row=4, column=1, padx=5, pady=5)
-
-        tk.Label(self.frame_ordens, text="Valor:").grid(row=5, column=0, padx=5, pady=5)
-        valor_var = tk.StringVar()
-        tk.Entry(self.frame_ordens, textvariable=valor_var).grid(row=5, column=1, padx=5, pady=5)
-
-        tk.Label(self.frame_ordens, text="Valor da Mão de Obra:").grid(row=6, column=0, padx=5, pady=5)
-        mao_obra_var = tk.StringVar()
-        tk.Entry(self.frame_ordens, textvariable=mao_obra_var).grid(row=6, column=1, padx=5, pady=5)
-
-        tk.Label(self.frame_ordens, text="Status:").grid(row=7, column=0, padx=5, pady=5)
-        status_var = tk.StringVar()
-        status_combobox = ttk.Combobox(self.frame_ordens, textvariable=status_var, values=["Aberto", "Fechado"])
-        status_combobox.grid(row=7, column=1, padx=5, pady=5)
-
-        tk.Button(
-            self.frame_ordens,
-            text="Salvar",
-            command=lambda: self.salvar_ordem(cliente_var, modelo_var, descricao_var, pecas_var, quantidade_utilizada_var, valor_var, mao_obra_var, status_var)
-        ).grid(row=8, column=0, columnspan=2, pady=20)
-
-        # Campo de busca avançada
-        tk.Label(self.frame_ordens, text="Buscar Ordem:").grid(row=9, column=0, padx=5, pady=5)
-        busca_var = tk.StringVar()
-        tk.Entry(self.frame_ordens, textvariable=busca_var).grid(row=9, column=1, padx=5, pady=5)
+        # Campo de busca para cliente
+        tk.Label(self.frame_ordens, text="Buscar Cliente:").grid(row=0, column=0, padx=5, pady=5)
+        cliente_busca_var = tk.StringVar()
+        tk.Entry(self.frame_ordens, textvariable=cliente_busca_var).grid(row=0, column=1, padx=5, pady=5)
         tk.Button(
             self.frame_ordens,
             text="Buscar",
-            command=lambda: self.buscar_ordem_avancada(busca_var.get())
-        ).grid(row=9, column=2, padx=5, pady=5)
+            command=lambda: self.buscar_cliente_para_ordem(cliente_busca_var.get())
+        ).grid(row=0, column=2, padx=5, pady=5)
 
-        # Tabela com as ordens de serviço cadastradas
-        self.tree_ordens = self.create_ordem_table()
-        self.tree_ordens.grid(row=10, column=0, columnspan=3, padx=10, pady=10)
+        # Informações do cliente (aparecem após busca)
+        self.cliente_info_frame = tk.Frame(self.frame_ordens, bg="#f9f9f9", relief="solid", borderwidth=1)
+        self.cliente_info_frame.grid(row=1, column=0, columnspan=3, pady=10, padx=5, sticky="nsew")
+
+        tk.Label(self.cliente_info_frame, text="Cliente:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.cliente_nome_label = tk.Label(self.cliente_info_frame, text="N/A", anchor="w", bg="#f9f9f9")
+        self.cliente_nome_label.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(self.cliente_info_frame, text="CPF/CNPJ:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.cliente_cpf_label = tk.Label(self.cliente_info_frame, text="N/A", anchor="w", bg="#f9f9f9")
+        self.cliente_cpf_label.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(self.cliente_info_frame, text="Telefone:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.cliente_telefone_label = tk.Label(self.cliente_info_frame, text="N/A", anchor="w", bg="#f9f9f9")
+        self.cliente_telefone_label.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(self.cliente_info_frame, text="Endereço:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.cliente_endereco_label = tk.Label(self.cliente_info_frame, text="N/A", anchor="w", bg="#f9f9f9")
+        self.cliente_endereco_label.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+
+        # Descrição do Serviço
+        tk.Label(self.frame_ordens, text="Descrição do Serviço:").grid(row=2, column=0, padx=5, pady=5)
+        descricao_servico_var = tk.StringVar()
+        tk.Entry(self.frame_ordens, textvariable=descricao_servico_var).grid(row=2, column=1, padx=5, pady=5)
+
+        # Seleção de Peças Utilizadas
+        tk.Label(self.frame_ordens, text="Peça Utilizada:").grid(row=3, column=0, padx=5, pady=5)
+        self.peca_var = tk.StringVar()
+        tk.Entry(self.frame_ordens, textvariable=self.peca_var).grid(row=3, column=1, padx=5, pady=5)
+        tk.Button(
+            self.frame_ordens,
+            text="Buscar",
+            command=self.mostrar_lista_pecas
+        ).grid(row=3, column=2, padx=5, pady=5)
+
+        # Valor da Peça
+        tk.Label(self.frame_ordens, text="Valor da Peça:").grid(row=4, column=0, padx=5, pady=5)
+        tk.Entry(self.frame_ordens, textvariable=self.valor_peca_var, state="readonly").grid(row=4, column=1, padx=5, pady=5)
+
+        # Valor da Mão de Obra
+        tk.Label(self.frame_ordens, text="Valor da Mão de Obra:").grid(row=5, column=0, padx=5, pady=5)
+        mao_obra_var = tk.StringVar()
+        tk.Entry(self.frame_ordens, textvariable=mao_obra_var).grid(row=5, column=1, padx=5, pady=5)
+
+        # Status
+        tk.Label(self.frame_ordens, text="Status da Ordem:").grid(row=6, column=0, padx=5, pady=5)
+        status_var = tk.StringVar(value="Aberto")
+        status_combobox = ttk.Combobox(
+            self.frame_ordens,
+            textvariable=status_var,
+            values=["Aberto", "Em andamento", "Finalizado"]
+        )
+        status_combobox.grid(row=6, column=1, padx=5, pady=5)
+
+        # Botão para Adicionar ao Grid
+        tk.Button(
+            self.frame_ordens,
+            text="Adicionar ao Grid",
+            command=lambda: self.adicionar_ao_grid(
+                descricao_servico_var.get(),
+                self.peca_var.get(),
+                self.valor_peca_var.get(),
+                mao_obra_var.get(),
+                status_var.get()
+            )
+        ).grid(row=7, column=0, columnspan=2, pady=10)
+
+        # Grid de Ordens com o campo de status
+        self.grid_ordens = ttk.Treeview(
+            self.frame_ordens,
+            columns=(
+                "Descrição do Serviço",
+                "Peça Utilizada",
+                "Valor da Peça",
+                "Valor da Mão de Obra",
+                "Status"
+            ),
+            show="headings"
+        )
+        for col in (
+            "Descrição do Serviço",
+            "Peça Utilizada",
+            "Valor da Peça",
+            "Valor da Mão de Obra",
+            "Status"
+        ):
+            self.grid_ordens.heading(col, text=col)
+            self.grid_ordens.column(col, width=150)
+        self.grid_ordens.grid(row=8, column=0, columnspan=3, padx=5, pady=5)
+
+        # Totalizador abaixo do grid
+        self.total_label = tk.Label(self.frame_ordens, text="Total Peças: R$ 0.00 \n Total Mão de Obra: R$ 0.00", font=("Arial", 12, "bold"))
+        self.total_label.grid(row=9, column=0, columnspan=3, pady=10)
+
+        # Botões de Ação
+        tk.Button(
+            self.frame_ordens,
+            text="Salvar",
+            command=self.salvar_ordens
+        ).grid(row=10, column=0, padx=5, pady=10)
+
+        tk.Button(
+            self.frame_ordens,
+            text="Alterar",
+            command=self.alterar_ordem
+        ).grid(row=10, column=1, padx=5, pady=10)
+
+        tk.Button(
+            self.frame_ordens,
+            text="Excluir",
+            command=self.excluir_ordem
+        ).grid(row=10, column=2, padx=5, pady=10)
 
         self.load_ordem_data()
 
-    def create_ordem_table(self):
-        columns = ("ID", "Cliente", "Modelo Moto", "Descrição de Serviços", "Peças Utilizadas", "Quantidade Utilizada", "Valor", "Valor da Mão de Obra", "Status")
-        tree = ttk.Treeview(self.frame_ordens, columns=columns, show="headings")
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=150)
-        tree.bind("<Button-3>", self.show_ordem_menu)
-        return tree
+    def mostrar_lista_pecas(self):
+        janela_lista = tk.Toplevel(self.root)
+        janela_lista.title("Selecionar Peça")
+        janela_lista.geometry("400x300")
+
+        lista_pecas = tk.Listbox(janela_lista)
+        lista_pecas.pack(fill=tk.BOTH, expand=True)
+
+        df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Produtos")
+        for _, row in df.iterrows():
+            lista_pecas.insert(tk.END, row["Nome"])
+
+        def selecionar_peca(event):
+            selecionada = lista_pecas.get(lista_pecas.curselection())
+            peca = df[df["Nome"] == selecionada].iloc[0]
+            self.peca_var.set(selecionada)
+            self.valor_peca_var.set(peca["Preço"])
+            janela_lista.destroy()
+
+        lista_pecas.bind("<<ListboxSelect>>", selecionar_peca)
+
+    def buscar_cliente_para_ordem(self, termo):
+        try:
+            df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Clientes")
+            cliente = df[df["Nome"].str.contains(termo, case=False)].iloc[0]
+
+            # Atualizar os labels com as informações do cliente
+            self.cliente_nome_label.config(text=cliente["Nome"])
+            self.cliente_cpf_label.config(text=cliente["CPF/CNPJ"])
+            self.cliente_telefone_label.config(text=cliente["Telefone"])
+            self.cliente_endereco_label.config(text=cliente["Endereço"])
+
+        except IndexError:
+            messagebox.showwarning("Aviso", "Cliente não encontrado!")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao buscar cliente: {e}")
+
+    def adicionar_ao_grid(self, descricao_servico, peca, valor_peca, mao_obra, status):
+        if not descricao_servico or not peca or not valor_peca or not mao_obra or not status:
+            messagebox.showwarning("Aviso", "Preencha todos os campos!")
+            return
+
+        self.grid_ordens.insert(
+            "",
+            "end",
+            values=(descricao_servico, peca, valor_peca, mao_obra, status)
+        )
+        self.atualizar_totalizador()  # Atualiza o totalizador
+
+    def atualizar_totalizador(self):
+        total_pecas = 0
+        total_mao_obra = 0
+
+        for item in self.grid_ordens.get_children():
+            valores = self.grid_ordens.item(item, "values")
+            total_pecas += float(valores[2])  # Índice 2 é o Valor da Peça
+            total_mao_obra += float(valores[3])  # Índice 3 é o Valor da Mão de Obra
+
+        self.total_label.config(
+            text=f"Total Peças: R$ {total_pecas:.2f} \n Total Mão de Obra: R$ {total_mao_obra:.2f}"
+        )
 
     def load_ordem_data(self):
-        for row in self.tree_ordens.get_children():
-            self.tree_ordens.delete(row)
+        for row in self.grid_ordens.get_children():
+            self.grid_ordens.delete(row)
 
         df = pd.read_excel(EXCEL_PATH, sheet_name="Ordens de Serviço")
         for _, row in df.iterrows():
-            self.tree_ordens.insert("", tk.END, values=row.tolist())
+            self.grid_ordens.insert("", tk.END, values=row.tolist())
 
-    def buscar_ordem_avancada(self, termo):
-        df = pd.read_excel(EXCEL_PATH, sheet_name="Ordens de Serviço")
-        ordens = df["Cliente"].tolist()
-        resultados = process.extract(termo, ordens, limit=5)
-        self.tree_ordens.delete(*self.tree_ordens.get_children())
-        for resultado in resultados:
-            ordem = df[df["Cliente"] == resultado[0]].iloc[0]
-            self.tree_ordens.insert("", tk.END, values=ordem.tolist())
+    def salvar_ordens(self):
+        try:
+            ordens = []
+            for item in self.grid_ordens.get_children():
+                valores = self.grid_ordens.item(item, "values")
+                ordens.append(valores)
 
-    def show_ordem_menu(self, event):
-        item = self.tree_ordens.selection()[0]
-        menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="Editar", command=lambda: self.editar_ordem(item))
-        menu.add_command(label="Excluir", command=lambda: self.excluir_ordem(item))
-        menu.post(event.x_root, event.y_root)
+            colunas = ["Descrição do Serviço", "Peça Utilizada", "Valor da Peça", "Valor da Mão de Obra", "Status"]
+            df = pd.DataFrame(ordens, columns=colunas)
 
-    def editar_ordem(self, item):
-        ordem_id = int(self.tree_ordens.item(item, "values")[0])
-        df = pd.read_excel(EXCEL_PATH, sheet_name="Ordens de Serviço")
-        ordem = df[df["ID"] == ordem_id]
-
-        if ordem.empty:
-            messagebox.showerror("Erro", "Ordem de Serviço não encontrada.")
-            return
-
-        ordem = ordem.iloc[0]
-
-        janela_editar = tk.Toplevel(self.root)
-        janela_editar.title("Editar Ordem de Serviço")
-        janela_editar.geometry("400x300")
-
-        cliente_var = tk.StringVar(value=ordem["Cliente"])
-        modelo_var = tk.StringVar(value=ordem["Modelo Moto"])
-        descricao_var = tk.StringVar(value=ordem["Descrição de Serviços"])
-        pecas_var = tk.StringVar(value=ordem["Peças Utilizadas"])
-        quantidade_utilizada_var = tk.StringVar(value=ordem["Quantidade Utilizada"])
-        valor_var = tk.StringVar(value=ordem["Valor"])
-        mao_obra_var = tk.StringVar(value=ordem["Valor da Mão de Obra"])
-        status_var = tk.StringVar(value=ordem["Status"])
-
-        tk.Label(janela_editar, text="Cliente:").grid(row=0, column=0, padx=5, pady=5)
-        cliente_entry = tk.Entry(janela_editar, textvariable=cliente_var)
-        cliente_entry.grid(row=0, column=1, padx=5, pady=5)
-        cliente_entry.bind("<KeyRelease>", lambda event: self.buscar_cliente(cliente_var))
-
-        tk.Label(janela_editar, text="Modelo Moto:").grid(row=1, column=0, padx=5, pady=5)
-        tk.Entry(janela_editar, textvariable=modelo_var).grid(row=1, column=1, padx=5, pady=5)
-
-        tk.Label(janela_editar, text="Descrição de Serviços:").grid(row=2, column=0, padx=5, pady=5)
-        tk.Entry(janela_editar, textvariable=descricao_var).grid(row=2, column=1, padx=5, pady=5)
-
-        tk.Label(janela_editar, text="Peças Utilizadas:").grid(row=3, column=0, padx=5, pady=5)
-        pecas_entry = tk.Entry(janela_editar, textvariable=pecas_var)
-        pecas_entry.grid(row=3, column=1, padx=5, pady=5)
-        pecas_entry.bind("<KeyRelease>", lambda event: self.buscar_pecas(pecas_var))
-
-        tk.Label(janela_editar, text="Quantidade Utilizada:").grid(row=4, column=0, padx=5, pady=5)
-        tk.Entry(janela_editar, textvariable=quantidade_utilizada_var).grid(row=4, column=1, padx=5, pady=5)
-
-        tk.Label(janela_editar, text="Valor:").grid(row=5, column=0, padx=5, pady=5)
-        tk.Entry(janela_editar, textvariable=valor_var).grid(row=5, column=1, padx=5, pady=5)
-
-        tk.Label(janela_editar, text="Valor da Mão de Obra:").grid(row=6, column=0, padx=5, pady=5)
-        tk.Entry(janela_editar, textvariable=mao_obra_var).grid(row=6, column=1, padx=5, pady=5)
-
-        tk.Label(janela_editar, text="Status:").grid(row=7, column=0, padx=5, pady=5)
-        status_combobox = ttk.Combobox(janela_editar, textvariable=status_var, values=["Aberto", "Fechado"])
-        status_combobox.grid(row=7, column=1, padx=5, pady=5)
-
-        def salvar_edicao():
-            df.loc[df["ID"] == ordem_id, ["Cliente", "Modelo Moto", "Descrição de Serviços", "Peças Utilizadas", "Quantidade Utilizada", "Valor", "Valor da Mão de Obra", "Status"]] = [
-                cliente_var.get(), modelo_var.get(), descricao_var.get(), pecas_var.get(), int(quantidade_utilizada_var.get()), float(valor_var.get()), float(mao_obra_var.get()), status_var.get()
-            ]
             with pd.ExcelWriter(EXCEL_PATH, mode='a', if_sheet_exists='replace') as writer:
                 df.to_excel(writer, sheet_name="Ordens de Serviço", index=False)
-            janela_editar.destroy()
-            self.load_ordem_data()
-            if status_var.get() == "Fechado":
-                self.enviar_email_cliente(cliente_var.get(), descricao_var.get())
 
-        tk.Button(janela_editar, text="Salvar", command=salvar_edicao).grid(row=8, column=0, columnspan=2, pady=20)
+            messagebox.showinfo("Sucesso", "Ordens de serviço salvas com sucesso!")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao salvar ordens de serviço: {e}")
 
-    def excluir_ordem(self, item):
-        ordem_id = int(self.tree_ordens.item(item, "values")[0])
-        resposta = messagebox.askyesno("Excluir", "Tem certeza que deseja excluir esta ordem de serviço?")
-        if resposta:
-            df = pd.read_excel(EXCEL_PATH, sheet_name="Ordens de Serviço")
-            if ordem_id not in df["ID"].values:
-                messagebox.showerror("Erro", "Ordem de Serviço não encontrada.")
+    def alterar_ordem(self):
+        try:
+            item_selecionado = self.grid_ordens.selection()
+            if not item_selecionado:
+                messagebox.showwarning("Aviso", "Nenhuma ordem selecionada para alterar.")
                 return
-            df = df[df["ID"] != ordem_id]
-            with pd.ExcelWriter(EXCEL_PATH, mode='a', if_sheet_exists='replace') as writer:
-                df.to_excel(writer, sheet_name="Ordens de Serviço", index=False)
-            self.load_ordem_data()
 
-    def salvar_ordem(self, cliente_var, modelo_var, descricao_var, pecas_var, quantidade_utilizada_var, valor_var, mao_obra_var, status_var):
-        try:
-            if os.path.exists(EXCEL_PATH):
-                df = pd.read_excel(EXCEL_PATH, sheet_name="Ordens de Serviço")
-            else:
-                df = pd.DataFrame(columns=["ID", "Cliente", "Modelo Moto", "Descrição de Serviços", "Peças Utilizadas", "Quantidade Utilizada", "Valor", "Valor da Mão de Obra", "Status"])
+            valores = self.grid_ordens.item(item_selecionado, "values")
 
-            novo_id = df["ID"].max() + 1 if not df.empty else 1
-            nova_ordem = pd.DataFrame({
-                "ID": [novo_id],
-                "Cliente": [cliente_var.get()],
-                "Modelo Moto": [modelo_var.get()],
-                "Descrição de Serviços": [descricao_var.get()],
-                "Peças Utilizadas": [pecas_var.get()],
-                "Quantidade Utilizada": [int(quantidade_utilizada_var.get())],
-                "Valor": [float(valor_var.get())],
-                "Valor da Mão de Obra": [float(mao_obra_var.get())],
-                "Status": [status_var.get()]
-            })
-            df = pd.concat([df, nova_ordem], ignore_index=True)
-            with pd.ExcelWriter(EXCEL_PATH, mode='a', if_sheet_exists='replace') as writer:
-                df.to_excel(writer, sheet_name="Ordens de Serviço", index=False)
-            messagebox.showinfo("Sucesso", "Ordem de Serviço cadastrada com sucesso!")
-            self.load_ordem_data()
-            self.atualizar_estoque(pecas_var.get(), int(quantidade_utilizada_var.get()))
-            if status_var.get() == "Fechado":
-                self.enviar_email_cliente(cliente_var.get(), descricao_var.get())
+            # Janela para edição
+            janela_editar = tk.Toplevel(self.root)
+            janela_editar.title("Alterar Ordem de Serviço")
+            janela_editar.geometry("400x300")
+
+            # Campos para edição
+            descricao_var = tk.StringVar(value=valores[0])
+            peca_var = tk.StringVar(value=valores[1])
+            valor_peca_var = tk.StringVar(value=valores[2])
+            mao_obra_var = tk.StringVar(value=valores[3])
+            status_var = tk.StringVar(value=valores[4])
+
+            tk.Label(janela_editar, text="Descrição do Serviço:").grid(row=0, column=0, padx=5, pady=5)
+            tk.Entry(janela_editar, textvariable=descricao_var).grid(row=0, column=1, padx=5, pady=5)
+
+            tk.Label(janela_editar, text="Peça Utilizada:").grid(row=1, column=0, padx=5, pady=5)
+            tk.Entry(janela_editar, textvariable=peca_var).grid(row=1, column=1, padx=5, pady=5)
+
+            tk.Label(janela_editar, text="Valor da Peça:").grid(row=2, column=0, padx=5, pady=5)
+            tk.Entry(janela_editar, textvariable=valor_peca_var).grid(row=2, column=1, padx=5, pady=5)
+
+            tk.Label(janela_editar, text="Valor da Mão de Obra:").grid(row=3, column=0, padx=5, pady=5)
+            tk.Entry(janela_editar, textvariable=mao_obra_var).grid(row=3, column=1, padx=5, pady=5)
+
+            tk.Label(janela_editar, text="Status:").grid(row=4, column=0, padx=5, pady=5)
+            ttk.Combobox(
+                janela_editar, textvariable=status_var, values=["Aberto", "Em andamento", "Finalizado"]
+            ).grid(row=4, column=1, padx=5, pady=5)
+
+            # Botão para salvar as alterações
+            tk.Button(
+                janela_editar,
+                text="Salvar",
+                command=lambda: self.confirmar_alteracao(
+                    item_selecionado, descricao_var.get(), peca_var.get(),
+                    valor_peca_var.get(), mao_obra_var.get(), status_var.get(),
+                    janela_editar
+                )
+            ).grid(row=5, column=0, columnspan=2, pady=20)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao salvar ordem de serviço:\n{e}")
+            messagebox.showerror("Erro", f"Erro ao alterar ordem: {e}")
 
-    def atualizar_estoque(self, pecas, quantidade_utilizada):
-        df_produtos = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Produtos")
-        for peca in pecas.split(","):
-            peca = peca.strip()
-            if peca in df_produtos["Nome"].values:
-                df_produtos.loc[df_produtos["Nome"] == peca, "Estoque"] -= quantidade_utilizada
-                if df_produtos.loc[df_produtos["Nome"] == peca, "Estoque"].values[0] <= 0:
-                    self.enviar_email_notificacao_estoque(peca)
-                elif df_produtos.loc[df_produtos["Nome"] == peca, "Estoque"].values[0] <= df_produtos.loc[df_produtos["Nome"] == peca, "Ponto de Pedido"].values[0]:
-                    self.enviar_email_notificacao_ponto_pedido(peca)
-        with pd.ExcelWriter(EXCEL_PATH, mode='a', if_sheet_exists='replace') as writer:
-            df_produtos.to_excel(writer, sheet_name="Gerenciar Produtos", index=False)
+    def confirmar_alteracao(self, item, descricao, peca, valor_peca, mao_obra, status, janela_editar):
+        self.grid_ordens.item(item, values=(descricao, peca, valor_peca, mao_obra, status))
+        self.atualizar_totalizador()
+        janela_editar.destroy()
 
-    def enviar_email_notificacao_estoque(self, peca):
-        df_config = pd.read_excel(EXCEL_PATH, sheet_name="Configurações")
-        destinatario = df_config[df_config["Configuração"] == "Destinatário para Notificações"]["Valor"].values[0]
-        assunto = "Notificação de Estoque Zerado"
-        corpo = f"A peça {peca} está com estoque zerado.\n\nAtenciosamente,\nOficina JM"
-        self.enviar_email(assunto, corpo, destinatario)
-
-    def enviar_email_notificacao_ponto_pedido(self, peca):
-        df_config = pd.read_excel(EXCEL_PATH, sheet_name="Configurações")
-        destinatario = df_config[df_config["Configuração"] == "Destinatário para Notificações"]["Valor"].values[0]
-        assunto = "Notificação de Ponto de Pedido"
-        corpo = f"A peça {peca} atingiu o ponto de pedido.\n\nAtenciosamente,\nOficina JM"
-        self.enviar_email(assunto, corpo, destinatario)
-
-    def enviar_email_cliente(self, cliente, descricao):
-        df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Clientes")
-        email_cliente = df[df["Nome"] == cliente]["Email"].values[0]
-        assunto = "Ordem de Serviço Concluída"
-        corpo = f"Prezado {cliente},\n\nSua ordem de serviço foi concluída.\nDescrição: {descricao}\n\nAtenciosamente,\nOficina JM"
-        self.enviar_email(assunto, corpo, email_cliente)
-
-    def enviar_email(self, assunto, corpo, para):
+    def excluir_ordem(self):
         try:
-            df_config = pd.read_excel(EXCEL_PATH, sheet_name="Configurações")
-            email_remetente = df_config[df_config["Configuração"] == "Email Remetente"]["Valor"].values[0]
-            senha = df_config[df_config["Configuração"] == "Senha"]["Valor"].values[0]
-            servidor_smtp = df_config[df_config["Configuração"] == "Servidor SMTP"]["Valor"].values[0]
-            porta_smtp = df_config[df_config["Configuração"] == "Porta SMTP"]["Valor"].values[0]
+            item_selecionado = self.grid_ordens.selection()
+            if not item_selecionado:
+                messagebox.showwarning("Aviso", "Nenhuma ordem selecionada para excluir.")
+                return
 
-            msg = MIMEText(corpo)
-            msg['Subject'] = assunto
-            msg['From'] = email_remetente
-            msg['To'] = para
-
-            with smtplib.SMTP(servidor_smtp, porta_smtp) as server:
-                server.starttls()
-                server.login(email_remetente, senha)
-                server.sendmail(email_remetente, para, msg.as_string())
-            messagebox.showinfo("Sucesso", "Email enviado com sucesso!")
+            self.grid_ordens.delete(item_selecionado)
+            self.atualizar_totalizador()
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao enviar email:\n{e}")
+            messagebox.showerror("Erro", f"Erro ao excluir ordem: {e}")
 
     def configuracoes(self):
         self.clear_main_frame()
@@ -837,17 +886,44 @@ class App:
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao salvar configurações:\n{e}")
 
-    def clear_main_frame(self):
-        for widget in self.main_frame.winfo_children():
-            widget.destroy()
-
     def on_closing(self):
         self.root.destroy()
+
+    def buscar_pecas(self, termo):
+        try:
+            df = pd.read_excel(EXCEL_PATH, sheet_name="Gerenciar Produtos")
+            pecas = df["Nome"].tolist()
+            resultados = process.extract(termo, pecas, limit=5)
+            # Aqui você pode adicionar lógica para mostrar os resultados da busca
+            print(resultados)
+        except Exception as e:
+            print(f"Erro ao buscar peças: {e}")
+            messagebox.showerror("Erro", f"Erro ao buscar peças: {e}")
+
+    def enviar_email(self, destinatario, assunto, mensagem):
+        try:
+            df_config = pd.read_excel(EXCEL_PATH, sheet_name="Configurações")
+            email_remetente = df_config.loc[df_config["Configuração"] == "Email Remetente", "Valor"].values[0]
+            senha = df_config.loc[df_config["Configuração"] == "Senha", "Valor"].values[0]
+            servidor_smtp = df_config.loc[df_config["Configuração"] == "Servidor SMTP", "Valor"].values[0]
+            porta_smtp = df_config.loc[df_config["Configuração"] == "Porta SMTP", "Valor"].values[0]
+
+            msg = MIMEText(mensagem)
+            msg["Subject"] = assunto
+            msg["From"] = email_remetente
+            msg["To"] = destinatario
+
+            with smtplib.SMTP(servidor_smtp, porta_smtp) as server:
+                server.starttls()
+                server.login(email_remetente, senha)
+                server.sendmail(email_remetente, destinatario, msg.as_string())
+
+            messagebox.showinfo("Sucesso", "Email enviado com sucesso!")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao enviar email: {e}")
 
 # Iniciar o aplicativo
 if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
     root.mainloop()
-        
-        
